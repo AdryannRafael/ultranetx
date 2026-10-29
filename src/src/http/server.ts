@@ -28,7 +28,7 @@ export async function StartServer(port: number) {
     .use(openapi())
     .use(
       cors({
-        origin: ["https://presentes.cristian-e-carla.online"],
+        origin: [""],
         methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         credentials: true,
         allowedHeaders: ["Content-Type", "Authorization"],

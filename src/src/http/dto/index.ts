@@ -1,0 +1,10 @@
+export type * from "./comum.dto";
+export type * from "./cliente.dto";
+export type * from "./fatura.dto";
+export type * from "./documento.dto";
+export type * from "./nota-fiscal.dto";
+export type * from "./plano.dto";
+export type * from "./conexao.dto";
+export type * from "./manutencao.dto";
+export type * from "./promessa.dto";
+export type * from "./chamado.dto";

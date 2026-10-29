@@ -17,7 +17,7 @@ import { sgp } from "@/src/src/sgp/proxy";
   // const { err: pixError, v: pix } = await sgp.fatura.ObterPix(23998, contrato);
 
   // if (pix) throw pixError;
-  const { v, err } = await sgp.documento.Imprimir(contrato, "contrato");
+  const { v, err } = await sgp.cliente.Consultar(cpfCnpj);
   if (err) throw err;
 
   console.log(v);
