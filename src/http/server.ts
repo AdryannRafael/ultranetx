@@ -2,6 +2,8 @@ import { openapi } from "@elysia/openapi";
 import { Elysia } from "elysia";
 // import { presentesController } from "./controller/presentes.routes";
 
+import { contratoController } from "@/src/http/controller/contrato.controller";
+import { faturaController } from "@/src/http/controller/fatura.controller";
 import { betterAuthPlugin, OpenAPI } from "@/src/http/plugins/auth-plugin";
 import { LogSystemError, Mount500Err, ToDto } from "@/src/http/utils";
 import { SystemException } from "@/src/shared/error";
@@ -39,6 +41,12 @@ export async function StartServer(port: number) {
           const sysErr = error as SystemException;
           return ToDto(sysErr, Mount500Err(sysErr.Erro.Code()));
         }
+        case "IntegrationException": {
+          // SGP fora do ar ou respondendo erro: a mensagem interna fica só no log
+          set.status = 502;
+          const sysErr = error as SystemException;
+          return ToDto(sysErr, Mount500Err(sysErr.Erro.Code()));
+        }
         case "VALIDATION": {
           if (error instanceof Error) {
             set.status = 400;
@@ -53,7 +61,8 @@ export async function StartServer(port: number) {
         }
       }
     })
-    // .use(presentesController)
+    .use(contratoController)
+    .use(faturaController)
     .listen(port, () => {
       console.log(`🦊 Server is Running on port ${port}`);
     });

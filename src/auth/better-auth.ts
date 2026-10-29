@@ -43,10 +43,10 @@ export const auth = betterAuth({
   },
   // As colunas id são text sem default no banco: o Better Auth precisa gerar o id (UUIDv7)
   advanced: { database: { joins: false, generateId: () => GenarateUUID() } },
-  rateLimit: {
-    enabled: true,
-    max: 3,
-  },
+  // rateLimit: {
+  //   enabled: true,
+  //   max: 3,
+  // },
 
   database: drizzleAdapter(db, {
     provider: "pg",

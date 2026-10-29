@@ -113,36 +113,49 @@ type User = {
 
 ---
 
-## 3. Rotas do app — 🕓 planejadas
+## 3. Rotas do app
 
-Todas exigem sessão (cookie do Better Auth). A API confere se o `:contratoId` é do CPF/CNPJ logado.
+Todas exigem sessão (cookie do Better Auth). O **número do contrato vai sempre em `?contrato=`** (o `contratoId` escolhido na tela de contratos). A API confere se o contrato é do CPF/CNPJ logado e está válido: se não for, responde `404 CONTRATO_NAO_ENCONTRADO`, mesmo quando o contrato existe para outra pessoa.
+
+### 3.1 ✅ Implementadas
+
+| Método | Rota | Parâmetros (query) | Tela | Saída |
+|---|---|---|---|---|
+| GET | `/contratos/ativos` | — | Escolha de contrato, Perfil | `ContratoDto[]` |
+| GET | `/faturas/abertas` | `contrato` | Início, detalhe da fatura | `SegundaViaDto` |
+| GET | `/faturas/periodo` | `contrato`, `vencimentoInicio?`, `vencimentoFim?` (AAAA-MM-DD), `status?` (`abertos` \| `pagos` \| `cancelados`), `ordenar?` (`data_vencimento` padrão \| `data_documento` \| `data_pagamento`), `ordem?` (`desc` padrão \| `asc`), `offset?`, `limit?` (1–250) | Faturas (histórico) | `ListaTitulosDto` |
+| GET | `/faturas/listar` | `contrato`, `status?` (1 aberto \| 2 pago \| 3 cancelado; sem status = todas menos canceladas), `offset?`, `limit?` (1–250) | alternativa ao histórico (traz `vencimento_atualizado` e `gerapix`) | `ListaFaturasDto` |
+| GET | `/faturas/:fatura/pix` | `contrato` (`:fatura` = `id` da fatura) | botão "Copiar Pix" | `{ pix: string \| null }` |
+
+`/contratos/ativos` devolve os contratos **Ativo, Suspenso e Ativo com velocidade reduzida**. Suspenso entra porque o cliente precisa ver e pagar a fatura.
+
+Parâmetro inválido (ex.: `contrato=abc`, `limit=999`, data fora do formato) → `400` com `{ type: "validation", property, message }`.
+
+### 3.2 🕓 Planejadas (mesmo padrão: `?contrato=`)
 
 | Método | Rota | Tela | Saída |
 |---|---|---|---|
-| GET | `/contratos` | Escolha de contrato, Perfil | `ContratoDto[]` |
-| GET | `/contratos/:contratoId` | Meu contrato | `ContratoDto` |
-| GET | `/contratos/:contratoId/plano` | Meu plano | `PlanoDto \| null` |
-| GET | `/contratos/:contratoId/conexao` | Início (status da internet) | `ConexaoDto` |
-| GET | `/contratos/:contratoId/avisos` | Início (banner de manutenção) | `ManutencaoDto[]` |
-| GET | `/contratos/:contratoId/faturas/abertas` | Início, detalhe da fatura | `SegundaViaDto` |
-| GET | `/contratos/:contratoId/faturas?inicio=AAAA-MM-DD&fim=AAAA-MM-DD&offset&limit` | Faturas (histórico) | `ListaTitulosDto` |
-| GET | `/contratos/:contratoId/faturas/:faturaId/pix` | botão "Copiar Pix" | `{ pix: string \| null }` |
-| GET | `/contratos/:contratoId/documentos/:tipo` | ver/baixar contrato | `application/pdf` |
-| GET | `/contratos/:contratoId/quitacao/:ano` | declaração anual de quitação | `application/pdf` |
-| GET | `/contratos/:contratoId/notas-fiscais` | notas fiscais | `NotaFiscalDto[]` |
+| GET | `/contratos/plano?contrato=` | Meu plano | `PlanoDto \| null` |
+| GET | `/contratos/conexao?contrato=` | Início (status da internet) | `ConexaoDto` |
+| GET | `/contratos/avisos?contrato=` | Início (banner de manutenção) | `ManutencaoDto[]` |
+| GET | `/documentos/:tipo?contrato=` | ver/baixar contrato | `application/pdf` |
+| GET | `/documentos/quitacao/:ano?contrato=` | declaração anual de quitação | `application/pdf` |
+| GET | `/notas-fiscais?contrato=` | notas fiscais | `NotaFiscalDto[]` |
 
-Dependem de decisão do provedor (não construir ainda): `GET/POST /contratos/:contratoId/promessas|liberacao` (desbloqueio em confiança), `GET /chamados/tipos`, `GET/POST /contratos/:contratoId/chamados` (suporte) e `GET /planos` (outros planos).
+Os nomes das rotas 🕓 podem mudar quando forem implementadas.
+
+Dependem de decisão do provedor (não construir ainda): desbloqueio em confiança, chamados de suporte e catálogo de outros planos.
 
 ---
 
 ## 4. Regras de cada tela
 
 ### Escolha de contrato
-- `GET /contratos`. Com **um** contrato, pular a tela. Com **vários**, listar com plano e status, e guardar o escolhido (pode trocar no Perfil).
+- `GET /contratos/ativos`. Com **um** contrato, pular a tela. Com **vários**, listar com plano e status, e guardar o escolhido (pode trocar no Perfil).
 - Status do contrato (`contratoStatus`): `1` Ativo · `4` Suspenso · `7` Ativo com velocidade reduzida · `3` Cancelado (não aparece). Para 4 e 7, mostrar um alerta em vermelho (#E10A0A) com o `motivo_status`.
 
 ### Início
-- **Fatura atual:** `GET /faturas/abertas`.
+- **Fatura atual:** `GET /faturas/abertas?contrato=`.
   - `status = 0` ou `links` vazio → card "Você está em dia".
   - Senão, a fatura atual é `links[0]` (vêm do vencimento mais antigo para o mais novo). Mostrar `valor`, `vencimento` e a situação, calculada pelo app comparando `vencimento` com hoje: "Em aberto", "Vence hoje" ou "Vencida".
   - Vencida: mostrar `valor` (já corrigido) e, menor, `valor_original` e `vencimento_original`. `multa` e `juros` vêm separados.
@@ -151,13 +164,13 @@ Dependem de decisão do provedor (não construir ainda): `GET/POST /contratos/:c
 - **Plano:** resumo vindo do contrato (`planointernet`, `cobVencimento` = dia do vencimento).
 
 ### Detalhe da fatura / pagar
-- **Pix:** se `codigopix` vier preenchido, usar direto. Se vier vazio, chamar `GET /faturas/:faturaId/pix` (`:faturaId` = `id`). `pix: null` → esconder o Pix e deixar só o boleto.
+- **Pix:** se `codigopix` vier preenchido, usar direto. Se vier vazio, chamar `GET /faturas/:fatura/pix?contrato=` (`:fatura` = `id`). `pix: null` → esconder o Pix e deixar só o boleto.
 - **Copiar:** Pix e `linhadigitavel` com `expo-clipboard` + vibração (`expo-haptics`) e o aviso "Copiado!".
 - **Boleto em PDF:** abrir `link` (público, sem sessão) no navegador do sistema. `link_cobranca` é a página de pagamento do provedor.
 - O app **só exibe**. Nunca altera fatura nem marca como paga.
 
 ### Faturas (histórico)
-- Padrão: últimos 12 meses (`inicio` = hoje − 12 meses, `fim` = hoje + 2 meses), da mais recente para a mais antiga. "Carregar mais" com `offset`/`limit`.
+- `GET /faturas/periodo?contrato=`. Padrão: últimos 12 meses (`vencimentoInicio` = hoje − 12 meses, `vencimentoFim` = hoje + 2 meses), da mais recente para a mais antiga. "Carregar mais" com `offset`/`limit`.
 - `status` do título: `"aberto"`, `"pago"` (mostrar `dataPagamento`) ou `"cancelado"`.
 - Datas vazias chegam como `""`, não como `null`.
 
@@ -185,7 +198,9 @@ Dependem de decisão do provedor (não construir ainda): `GET/POST /contratos/:c
 | Rotas do app | `{ code, message }` | ver abaixo |
 | `401` | sessão ausente/expirada | ir para o Login |
 | `403` `TROCAR_SENHA` | primeiro acesso pendente | ir para "Criar nova senha" |
+| `404` `CONTRATO_NAO_ENCONTRADO` | o `?contrato=` não é do usuário ou deixou de ser válido (ex.: foi cancelado) | recarregar `/contratos/ativos` e voltar para a escolha de contrato |
 | `429` | muitas tentativas | aguardar e permitir tentar de novo |
+| `502` | o SGP não respondeu | mostrar a `message` e manter o último dado em cache |
 | `5xx` / SGP fora do ar | `{ code, message }`; `message` pode trazer "informando o codigo SE…" | mostrar a `message` e manter na tela o último dado carregado (TanStack Query com dados em cache) |
 
 O app precisa **funcionar com o SGP fora do ar**: mostrar o último dado conhecido com um aviso, sem travar (requisito RNF-06).
@@ -303,7 +318,7 @@ type NotaFiscalDto = {
 
 ## 7. Pendências que afetam o app
 
-- **Back-end:** falta o plugin `expo()` do `@better-auth/expo` no servidor e o `trustedOrigins` com o scheme do app (`ultranetx://`). Sem isso o login pelo app nativo não funciona. Avisar o back-end antes de integrar.
+- **Back-end:** ~~falta o plugin `expo()` e o `trustedOrigins`~~ feito em 29/10/2026 (`ultranetx://` e, fora de produção, `exp://`).
 - **Rotas 🕓:** usar dados simulados com os DTOs da seção 6.
 - **"Esqueci a senha"**, **suporte/chamados**, **desbloqueio em confiança** e **número do WhatsApp**: aguardando decisão do provedor.
 - **Domínio** da API: a definir.

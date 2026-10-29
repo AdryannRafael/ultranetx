@@ -38,3 +38,6 @@ export type SgpSegundaViaItemDto = SgpSegundaViaItem;
 export type SgpSegundaViaDto = Omit<SgpSegundaVia, "links"> & {
   links: SgpSegundaViaItemDto[];
 };
+
+// Pix copia e cola da fatura; null quando o SGP não tem Pix para o título
+export type SgpPixDto = { pix: string | null };
