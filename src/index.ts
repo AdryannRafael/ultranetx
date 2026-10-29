@@ -1,7 +1,10 @@
 // import { Elysia } from "elysia";
 
+import { auth } from "@/src/auth/better-auth";
+import { GerarUsuarios } from "@/src/auth/gerar-usuarios";
 import { CheckDatabaseConnection } from "@/src/db";
 import { StartServer } from "@/src/http/server";
+import { sgp } from "@/src/sgp/proxy";
 
 // const app = new Elysia().get("/", () => "Hello Elysia").listen(3000);
 
@@ -25,6 +28,6 @@ import { StartServer } from "@/src/http/server";
   // // console.log(pix);
   const dbIsRunning = await CheckDatabaseConnection();
   if (dbIsRunning) {
-    StartServer(3333);
+    await StartServer(3333);
   }
 })();

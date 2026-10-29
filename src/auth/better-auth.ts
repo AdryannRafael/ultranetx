@@ -1,21 +1,32 @@
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
+import { expo } from "@better-auth/expo";
 import { betterAuth } from "better-auth";
-import { openAPI, username } from "better-auth/plugins";
+import { admin, openAPI, username } from "better-auth/plugins";
 import { db } from "~/db";
 import * as schemas from "~/db/schema/auth";
+import { GenarateUUID } from "~/shared/ddd/helpers";
 import { CpfCnpjValido, NormalizarCpfCnpj } from "./cpf";
 import { afterHook, beforeHook } from "./hooks";
 
+// Origens aceitas: o scheme do app (app.json → "ultranetx") e, fora de produção, o Expo Go (exp://)
+const trustedOrigins = [
+  "ultranetx://",
+  ...(Bun.env.NODE_ENV === "production"
+    ? []
+    : ["exp://", "exp://**", "exp://192.168.*.*:*/**"]),
+];
+
 export const auth = betterAuth({
   basePath: "/auth",
+  trustedOrigins,
   emailAndPassword: {
     enabled: true,
-    // Não existe cadastro pelo app: a conta nasce no primeiro login (hooks/primeiro-login.ts)
+    // Não existe cadastro pelo app: as contas são geradas a partir do SGP (bun run usuarios:gerar)
     disableSignUp: true,
   },
   user: {
     additionalFields: {
-      // true na conta criada no primeiro login: só libera o app depois do /change-password
+      // true nas contas geradas (senha = nº do contrato): só libera o app depois do /change-password
       mustChangePassword: {
         type: "boolean",
         defaultValue: false,
@@ -30,7 +41,8 @@ export const auth = betterAuth({
     before: beforeHook,
     after: afterHook,
   },
-  advanced: { database: { joins: false, generateId: false } },
+  // As colunas id são text sem default no banco: o Better Auth precisa gerar o id (UUIDv7)
+  advanced: { database: { joins: false, generateId: () => GenarateUUID() } },
   rateLimit: {
     enabled: true,
     max: 3,
@@ -44,7 +56,10 @@ export const auth = betterAuth({
   }),
 
   plugins: [
+    // App nativo (better-auth/expo): aceita o cookie de sessão vindo do header do app
+    expo(),
     openAPI(),
+    admin(),
     username({
       usernameNormalization: NormalizarCpfCnpj,
       // No sign-in o plugin valida o texto cru, então o validador normaliza antes:

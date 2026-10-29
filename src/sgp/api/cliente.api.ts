@@ -1,5 +1,11 @@
 import { E } from "~/shared/either";
-import type { SgpContrato, SgpHttp } from "../types";
+import type {
+  SgpClienteResumo,
+  SgpContrato,
+  SgpHttp,
+  SgpListaClientes,
+  SgpListarClientesParams,
+} from "../types";
 import { Falha } from "./http";
 
 // Contexto: cliente e contratos
@@ -30,6 +36,20 @@ function SanitizarContrato(c: any): SgpContrato {
   };
 }
 
+function SanitizarClienteResumo(c: any): SgpClienteResumo {
+  return {
+    id: c.id,
+    nome: c.nome ?? "",
+    cpfcnpj: c.cpfcnpj ?? "",
+    contratos: Array.isArray(c.contratos)
+      ? c.contratos.map((k: any) => ({
+          id: k.id,
+          status: String(k.status ?? "").trim(),
+        }))
+      : [],
+  };
+}
+
 export function CreateClienteApi(http: SgpHttp) {
   /**
    * Contratos do CPF/CNPJ, com os contatos usados para enviar o código de verificação.
@@ -54,5 +74,30 @@ export function CreateClienteApi(http: SgpHttp) {
     return E.Ok(contratos);
   }
 
-  return { Consultar };
+  /**
+   * Todos os clientes, paginados (máx. 100 por página), só com id e status dos contratos.
+   * Usado pela rotina que gera os usuários do app (src/scripts/gerar-usuarios.ts).
+   * Rota: POST /api/ura/clientes/
+   */
+  async function Listar(
+    params: SgpListarClientesParams = {},
+  ): E.R<SgpListaClientes> {
+    const r = await http.Post<{ paginacao: any; clientes?: any[] }>(
+      "/api/ura/clientes/",
+      {
+        contrato_status: params.contratoStatus?.join(","),
+        offset: params.offset,
+        limit: params.limit && Math.min(params.limit, 100),
+        omitir_titulos: 1,
+        omitir_contatos: 1,
+      },
+    );
+    if (r.err) return r;
+    return E.Ok({
+      paginacao: r.v.paginacao,
+      clientes: (r.v.clientes ?? []).map(SanitizarClienteResumo),
+    });
+  }
+
+  return { Consultar, Listar };
 }
