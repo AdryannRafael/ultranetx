@@ -1,4 +1,4 @@
-import { SgpContrato, SgpContratoStatus } from "@/src/src/sgp/types";
+import { SgpContrato, SgpContratoStatus } from "@/src/sgp/types";
 
 export type SgpContratoStatusDto = SgpContratoStatus;
 

@@ -1,4 +1,4 @@
-import { SgpManutencao, SgpManutencaoPop } from "@/src/src/sgp/types";
+import { SgpManutencao, SgpManutencaoPop } from "@/src/sgp/types";
 
 export type SgpManutencaoPopDto = SgpManutencaoPop;
 

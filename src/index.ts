@@ -1,6 +1,6 @@
 // import { Elysia } from "elysia";
 
-import { sgp } from "@/src/src/sgp/proxy";
+import { sgp } from "@/src/sgp/proxy";
 
 // const app = new Elysia().get("/", () => "Hello Elysia").listen(3000);
 

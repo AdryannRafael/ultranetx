@@ -7,14 +7,17 @@ import {
   SgpSegundaViaItem,
   SgpTitulo,
   SgpTituloStatus,
-} from "@/src/src/sgp/types";
+} from "@/src/sgp/types";
 import { SgpPaginacaoDto } from "./comum.dto";
 
 export type SgpFaturaStatusDto = SgpFaturaStatus;
 export type SgpFaturaDto = SgpFatura;
 
 // As listas apontam para os Dto dos itens: um campo novo no item já aparece na lista
-export type SgpListaFaturasDto = Omit<SgpListaFaturas, "paginacao" | "faturas"> & {
+export type SgpListaFaturasDto = Omit<
+  SgpListaFaturas,
+  "paginacao" | "faturas"
+> & {
   paginacao: SgpPaginacaoDto;
   faturas: SgpFaturaDto[];
 };
@@ -22,7 +25,10 @@ export type SgpListaFaturasDto = Omit<SgpListaFaturas, "paginacao" | "faturas"> 
 export type SgpTituloStatusDto = SgpTituloStatus;
 export type SgpTituloDto = SgpTitulo;
 
-export type SgpListaTitulosDto = Omit<SgpListaTitulos, "paginacao" | "titulos"> & {
+export type SgpListaTitulosDto = Omit<
+  SgpListaTitulos,
+  "paginacao" | "titulos"
+> & {
   paginacao: SgpPaginacaoDto;
   titulos: SgpTituloDto[];
 };
