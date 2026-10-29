@@ -1,4 +1,4 @@
-// Transporte HTTP compartilhado pelas APIs de cada contexto (src/src/sgp/api)
+// Transporte HTTP compartilhado pelas APIs de cada contexto (src/sgp/api)
 import type { E } from "~/shared/either";
 
 // Campos enviados no corpo das requisições (undefined é ignorado)

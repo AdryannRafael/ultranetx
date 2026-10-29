@@ -7,12 +7,12 @@ export const user = pgTable("user", {
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified").default(false).notNull(),
   image: text("image"),
-  // Plugin username do Better Auth: CPF/CNPJ só com dígitos
-  username: text("username").unique(),
   createdAt: timestamp("created_at").notNull(),
   updatedAt: timestamp("updated_at")
     .$onUpdate(() => new Date())
     .notNull(),
+  username: text("username").unique(),
+  mustChangePassword: boolean("must_change_password").default(false),
 });
 
 export const session = pgTable(

@@ -16,6 +16,14 @@ export const authenticatedMiddleware = new Elysia({
         });
       }
 
+      // Primeiro acesso: o app precisa chamar /auth/change-password antes de qualquer rota
+      if (result.user.mustChangePassword) {
+        return status(403, {
+          message: "Troque a senha inicial para continuar",
+          code: "TROCAR_SENHA",
+        });
+      }
+
       return result;
     },
   },
