@@ -3,6 +3,9 @@ interface Enviroment {
   SGP_APP: string;
   SGP_TOKEN: string;
   DATABASE_URL: string;
+  // Desbloqueio em confiança pelo app (grava promessa de pagamento no SGP).
+  // Desligado até a Ultra Net X aprovar (P-03): só liga com "true"
+  LIBERACAO_CONFIANCA_HABILITADA: boolean;
 }
 
 export const env: Enviroment = {
@@ -10,6 +13,8 @@ export const env: Enviroment = {
   SGP_APP: getEnvOrThrow("SGP_APP", false) || "",
   SGP_TOKEN: getEnvOrThrow("SGP_TOKEN", false) || "",
   DATABASE_URL: getEnvOrThrow("DATABASE_URL", false) || "",
+  LIBERACAO_CONFIANCA_HABILITADA:
+    getEnvOrThrow("LIBERACAO_CONFIANCA_HABILITADA", false) === "true",
 };
 
 function getEnvOrThrow<T = string>(

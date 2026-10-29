@@ -35,8 +35,15 @@ export const auth = betterAuth({
       },
     },
   },
-  // O login é só por CPF/CNPJ (/sign-in/username)
-  disabledPaths: ["/sign-in/email"],
+  disabledPaths: [
+    // O login é só por CPF/CNPJ (/sign-in/username)
+    "/sign-in/email",
+    // Permitiria o usuário trocar o próprio username para outro CPF e acessar os
+    // contratos dele (as rotas autorizam pelo username). Nome e dados vêm do SGP.
+    "/update-user",
+    // Diria a qualquer pessoa, sem login, se um CPF/CNPJ é cliente
+    "/is-username-available",
+  ],
   hooks: {
     before: beforeHook,
     after: afterHook,

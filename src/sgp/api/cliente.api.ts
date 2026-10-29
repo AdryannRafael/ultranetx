@@ -1,6 +1,7 @@
 import { E } from "~/shared/either";
 import type {
   SgpClienteResumo,
+  SgpContato,
   SgpContrato,
   SgpHttp,
   SgpListaClientes,
@@ -11,6 +12,23 @@ import { Falha } from "./http";
 // Contexto: cliente e contratos
 
 const SoDigitos = (v: string) => v.replace(/\D/g, "");
+
+// O SGP manda null, número ou "None" em campos de texto do endereço
+const Texto = (v: unknown) =>
+  v === null || v === undefined || v === "None" ? "" : String(v).trim();
+
+// Aceita o formato real ({ tipoContato, contato }) e o da documentação (string)
+function SanitizarContatos(lista: unknown, tipoPadrao: string): SgpContato[] {
+  if (!Array.isArray(lista)) return [];
+  return lista
+    .map((x: any) =>
+      typeof x === "string"
+        ? { tipo: tipoPadrao, contato: x }
+        : { tipo: String(x?.tipoContato ?? tipoPadrao), contato: String(x?.contato ?? "") },
+    )
+    .map((x) => ({ tipo: x.tipo.trim(), contato: x.contato.trim() }))
+    .filter((x) => x.contato);
+}
 
 // Copia só os campos permitidos. Senhas da Central, PPPoE, Wi-Fi, MAC e IP ficam para trás.
 function SanitizarContrato(c: any): SgpContrato {
@@ -23,11 +41,21 @@ function SanitizarContrato(c: any): SgpContrato {
     contratoStatusDisplay: String(c.contratoStatusDisplay ?? "").trim(),
     motivo_status: c.motivo_status ?? "",
     planointernet: c.planointernet ?? "",
+    servico_grupo: c.servico_grupo ?? "",
+    endereco: {
+      logradouro: Texto(c.endereco_logradouro),
+      numero: Texto(c.endereco_numero),
+      complemento: Texto(c.endereco_complemento),
+      bairro: Texto(c.endereco_bairro),
+      cidade: Texto(c.endereco_cidade),
+      uf: Texto(c.endereco_uf),
+      cep: Texto(c.endereco_cep),
+    },
     cobVencimento: c.cobVencimento ?? null,
     popId: c.popId,
     popNome: c.popNome ?? "",
-    telefones: Array.isArray(c.telefones) ? c.telefones : [],
-    emails: Array.isArray(c.emails) ? c.emails : [],
+    telefones: SanitizarContatos(c.telefones, "Telefone"),
+    emails: SanitizarContatos(c.emails, "E-Mail"),
     contratoValorAberto: c.contratoValorAberto ?? 0,
     contratoTitulosAReceber: c.contratoTitulosAReceber ?? 0,
     promessasPagamentoMes: c.promessasPagamentoMes ?? 0,

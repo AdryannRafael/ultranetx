@@ -3,7 +3,10 @@ import { Elysia } from "elysia";
 // import { presentesController } from "./controller/presentes.routes";
 
 import { contratoController } from "@/src/http/controller/contrato.controller";
+import { documentoController } from "@/src/http/controller/documento.controller";
 import { faturaController } from "@/src/http/controller/fatura.controller";
+import { notaFiscalController } from "@/src/http/controller/nota-fiscal.controller";
+import { usuarioController } from "@/src/http/controller/usuario.controller";
 import { betterAuthPlugin, OpenAPI } from "@/src/http/plugins/auth-plugin";
 import { LogSystemError, Mount500Err, ToDto } from "@/src/http/utils";
 import { SystemException } from "@/src/shared/error";
@@ -63,6 +66,9 @@ export async function StartServer(port: number) {
     })
     .use(contratoController)
     .use(faturaController)
+    .use(documentoController)
+    .use(notaFiscalController)
+    .use(usuarioController)
     .listen(port, () => {
       console.log(`🦊 Server is Running on port ${port}`);
     });

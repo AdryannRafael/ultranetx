@@ -22,7 +22,7 @@
 | Homologação / Produção | `https://api-hml.<domínio>` / `https://api.<domínio>` (domínio a definir) |
 
 - Autenticação: tudo sob `/auth/*`.
-- OpenAPI: `GET /openapi/json`. Os tipos do app saem daí com `openapi-typescript` + `openapi-fetch`. Enquanto as rotas 🕓 não existem, use os tipos da seção 6.
+- OpenAPI: `GET /openapi/json`. Os tipos do app saem daí com `openapi-typescript` + `openapi-fetch`. Os tipos da seção 6 descrevem as mesmas respostas.
 
 ---
 
@@ -86,6 +86,9 @@ Criar nova senha (obrigatória no primeiro acesso)
 | GET | `/auth/get-session` | — | `{ session, user }` ou `null` |
 | POST | `/auth/change-password` | `{ currentPassword, newPassword, revokeOtherSessions? }` | `{ token, user }` |
 | POST | `/auth/sign-out` | — | `{ success: true }` |
+| GET | `/auth/list-sessions` | — | sessões ativas do usuário (aparelhos conectados) |
+| POST | `/auth/revoke-other-sessions` | `{}` | `{ status: true }`: desconecta os outros aparelhos |
+| POST | `/auth/revoke-session` | `{ token }` | `{ status: true }`: desconecta um aparelho |
 
 **`user` na sessão:**
 
@@ -107,7 +110,7 @@ type User = {
 3. **Quem não tem conta não entra.** CPF/CNPJ só com contratos cancelados ou inativos, ou cliente novo que ainda não passou pela geração de contas, recebe 401 como senha errada. Para esses casos, mostrar o contato do provedor junto do erro.
 4. **Enquanto `mustChangePassword = true`**, todas as rotas do app (seção 3) respondem `403 { code: "TROCAR_SENHA" }`. Ao receber isso em qualquer tela, ir para "Criar nova senha".
 5. **Senha nova:** mínimo de 8 caracteres e diferente da atual. No primeiro acesso, `currentPassword` é o número do contrato que o cliente acabou de digitar. Guarde em memória durante o fluxo e **nunca** em disco.
-6. **Não existe cadastro.** `/auth/sign-up/email` responde 400 e `/auth/sign-in/email` responde 404. Não chamar.
+6. **Não existe cadastro nem edição de conta.** `/auth/sign-up/email` responde 400. `/auth/sign-in/email`, `/auth/update-user`, `/auth/delete-user` e `/auth/is-username-available` respondem 404. Não chamar. Nome e contatos vêm do SGP e o app só exibe.
 7. **Limite de tentativas:** a API limita as requisições de `/auth/*` (hoje 3 por janela curta). Tratar `429` com mensagem e um botão de tentar de novo, sem repetir em loop.
 8. "Esqueci a senha" **ainda não existe** (🕓). Até lá, mostrar o contato do provedor (WhatsApp).
 
@@ -126,25 +129,33 @@ Todas exigem sessão (cookie do Better Auth). O **número do contrato vai sempre
 | GET | `/faturas/periodo` | `contrato`, `vencimentoInicio?`, `vencimentoFim?` (AAAA-MM-DD), `status?` (`abertos` \| `pagos` \| `cancelados`), `ordenar?` (`data_vencimento` padrão \| `data_documento` \| `data_pagamento`), `ordem?` (`desc` padrão \| `asc`), `offset?`, `limit?` (1–250) | Faturas (histórico) | `ListaTitulosDto` |
 | GET | `/faturas/listar` | `contrato`, `status?` (1 aberto \| 2 pago \| 3 cancelado; sem status = todas menos canceladas), `offset?`, `limit?` (1–250) | alternativa ao histórico (traz `vencimento_atualizado` e `gerapix`) | `ListaFaturasDto` |
 | GET | `/faturas/:fatura/pix` | `contrato` (`:fatura` = `id` da fatura) | botão "Copiar Pix" | `{ pix: string \| null }` |
+| GET | `/contratos/meu-plano` | `contrato` | Meu plano (tela inteira numa chamada) | `MeuPlanoDto` |
+| GET | `/contratos/plano` | `contrato` | só o plano do catálogo (se precisar avulso) | `PlanoDto \| null` |
+| GET | `/contratos/promessas` | `contrato` | histórico de desbloqueios em confiança | `PromessaDto[]` |
+| POST | `/contratos/liberacao` | `contrato` | botão "Desbloqueio em confiança" | `LiberacaoDto` |
+| GET | `/contratos/conexao` | `contrato` | Início (status da internet) | `ConexaoDto` |
+| GET | `/contratos/avisos` | `contrato` | Início (banner de manutenção) | `ManutencaoDto[]` (só as ativas no POP do contrato) |
+| GET | `/notas-fiscais/listar` | `contrato` | notas fiscais | `NotaFiscalDto[]` |
+| GET | `/documentos/:tipo` | `contrato` (`:tipo` = `contrato` \| `termoadesao` \| `contratofidelidade` \| `termocomodato` \| `cancelamento` \| `termoaceite_web` \| `termoprivacidade`) | ver/baixar contrato | `application/pdf` |
+| GET | `/documentos/quitacao/:ano` | `contrato` (`:ano` de 2000 até o ano atual) | declaração anual de quitação | `application/pdf` |
+| GET | `/usuario/perfil` | — | Perfil | `PerfilDto` |
 
 `/contratos/ativos` devolve os contratos **Ativo, Suspenso e Ativo com velocidade reduzida**. Suspenso entra porque o cliente precisa ver e pagar a fatura.
 
-Parâmetro inválido (ex.: `contrato=abc`, `limit=999`, data fora do formato) → `400` com `{ type: "validation", property, message }`.
+Parâmetro inválido (ex.: `contrato=abc`, `limit=999`, data fora do formato, tipo de documento desconhecido) → `400` com `{ type: "validation", property, message }`.
 
-### 3.2 🕓 Planejadas (mesmo padrão: `?contrato=`)
+**PDFs (`/documentos/*`):** respondem `application/pdf` com `content-disposition: inline` e exigem o cookie de sessão. Baixe com `expo-file-system` (`File.downloadFileAsync`/`downloadAsync` com o header `Cookie` de `authClient.getCookie()`) e abra ou compartilhe com `expo-sharing`. Quando o SGP não gera o documento (modelo não configurado, ano sem faturas pagas ou SGP fora do ar), a resposta é `404 { code: "DOCUMENTO_INDISPONIVEL" }` → "Documento indisponível no momento". A quitação pode levar **até 60 s** para ser gerada: mostrar carregamento e não repetir a chamada.
 
-| Método | Rota | Tela | Saída |
-|---|---|---|---|
-| GET | `/contratos/plano?contrato=` | Meu plano | `PlanoDto \| null` |
-| GET | `/contratos/conexao?contrato=` | Início (status da internet) | `ConexaoDto` |
-| GET | `/contratos/avisos?contrato=` | Início (banner de manutenção) | `ManutencaoDto[]` |
-| GET | `/documentos/:tipo?contrato=` | ver/baixar contrato | `application/pdf` |
-| GET | `/documentos/quitacao/:ano?contrato=` | declaração anual de quitação | `application/pdf` |
-| GET | `/notas-fiscais?contrato=` | notas fiscais | `NotaFiscalDto[]` |
+**Desbloqueio em confiança (`POST /contratos/liberacao`):** grava no SGP (libera o serviço e registra uma promessa de pagamento) e está **desligado até a Ultra Net X aprovar** (P-03). Respostas:
+- `200 LiberacaoDto` → "Internet liberada por `liberado_dias` dia(s). Protocolo `protocolo`". Recarregar `/contratos/meu-plano`.
+- `403 LIBERACAO_DESABILITADA` → a função está desligada no servidor (não deveria acontecer: o botão só aparece com `liberacaoConfiancaDisponivel = true`).
+- `409 CONTRATO_NAO_BLOQUEADO` → o serviço não está bloqueado.
+- `409 LIBERACAO_NEGADA` → o SGP recusou (regras do provedor, ex.: já usou no mês). Mostrar a `message` e o WhatsApp.
+- Pedir confirmação antes de chamar e **não repetir** em caso de erro.
 
-Os nomes das rotas 🕓 podem mudar quando forem implementadas.
+### 3.2 🕓 Dependem de decisão do provedor (não construir ainda)
 
-Dependem de decisão do provedor (não construir ainda): desbloqueio em confiança, chamados de suporte e catálogo de outros planos.
+Chamados de suporte e catálogo de outros planos.
 
 ---
 
@@ -159,8 +170,8 @@ Dependem de decisão do provedor (não construir ainda): desbloqueio em confian�
   - `status = 0` ou `links` vazio → card "Você está em dia".
   - Senão, a fatura atual é `links[0]` (vêm do vencimento mais antigo para o mais novo). Mostrar `valor`, `vencimento` e a situação, calculada pelo app comparando `vencimento` com hoje: "Em aberto", "Vence hoje" ou "Vencida".
   - Vencida: mostrar `valor` (já corrigido) e, menor, `valor_original` e `vencimento_original`. `multa` e `juros` vêm separados.
-- **Status da internet:** `GET /conexao` → `1` "Sua internet está funcionando" · `2` "Sua internet está desconectada" · `9` "Em manutenção" · `0` não mostrar nada.
-- **Avisos:** `GET /avisos`. Se vier algum, mostrar um banner com `mensagem_central` e o período (`data_inicial` → `data_final`).
+- **Status da internet:** `GET /contratos/conexao?contrato=` → `1` "Sua internet está funcionando" · `2` "Sua internet está desconectada" · `9` "Em manutenção" · `0` não mostrar nada.
+- **Avisos:** `GET /contratos/avisos?contrato=`. Se vier algum, mostrar um banner com `mensagem_central` e o período (`data_inicial` → `data_final`).
 - **Plano:** resumo vindo do contrato (`planointernet`, `cobVencimento` = dia do vencimento).
 
 ### Detalhe da fatura / pagar
@@ -176,16 +187,34 @@ Dependem de decisão do provedor (não construir ainda): desbloqueio em confian�
 
 ### Meu contrato
 - Dados do `ContratoDto`: número (`contratoId`), status, plano e dia de vencimento.
-- **Ver/baixar PDF:** `GET /documentos/contrato` com o cookie de sessão. Baixar com `expo-file-system` e abrir ou compartilhar com `expo-sharing`. Outros `:tipo`: `termoadesao`, `contratofidelidade`, `termocomodato` (quais exibir depende do provedor). Se a API responder erro, mostrar "Documento indisponível no momento".
-- **Declaração de quitação:** seletor de ano → `GET /quitacao/:ano`. A API devolve erro quando não há faturas pagas no ano ("Não há faturas pagas neste ano").
+- **Ver/baixar PDF:** `GET /documentos/contrato?contrato=` com o cookie de sessão. Baixar com `expo-file-system` e abrir ou compartilhar com `expo-sharing`. Outros `:tipo`: `termoadesao`, `contratofidelidade`, `termocomodato` (quais exibir depende do provedor). Se a API responder erro, mostrar "Documento indisponível no momento".
+- **Declaração de quitação:** seletor de ano → `GET /documentos/quitacao/:ano?contrato=`. Ano sem faturas pagas → `404 DOCUMENTO_INDISPONIVEL` ("Não há faturas pagas neste ano").
 
 ### Meu plano
-- `GET /plano`. `download`/`upload` vêm em **kbps**: mostrar em Mega (`kbps / 1024`, arredondado). `null` → mostrar só `planointernet` e o valor do contrato.
-- Botão "Quero mudar de plano" → WhatsApp do provedor (número a definir).
+- `GET /contratos/meu-plano?contrato=` → uma chamada para a tela inteira.
+- **Cabeçalho:** "Contrato `contratoId` · `endereco.logradouro`, `endereco.numero`" (sem número: só o logradouro).
+- **Card do plano:**
+  - nome = `plano.nome`, com pílula de status a partir de `contratoStatusDisplay` (Ativo verde; Suspenso/reduzida vermelho);
+  - tecnologia = `plano.tecnologia` (`fibra` → "Internet fibra óptica", `radio` → "Internet via rádio");
+  - velocidade = `plano.downloadKbps / 1024` arredondado + "Mega de download";
+  - "Valor mensal" = `plano.valorMensal` em R$;
+  - "Vencimento" = "Todo dia `plano.vencimentoDia`".
+  - Campo `null` (o nome do plano não bate com o catálogo do SGP ou o SGP não respondeu) → esconder só aquele dado.
+- **Serviço suspenso** (`contratoStatus` 4 ou 7, com `faturaVencida` preenchida):
+  - Texto: "Sua internet foi suspensa por uma fatura vencida há `diasEmAtraso` dias (R$ `valor`). Ela volta em poucos minutos após o pagamento."
+  - "Pagar agora com Pix" → `GET /faturas/:fatura/pix?contrato=` com `faturaVencida.id`.
+  - "Desbloqueio em confiança" **só** quando `liberacaoConfiancaDisponivel = true` → `POST /contratos/liberacao?contrato=` (ver 3.1).
+  - Suspenso sem `faturaVencida` → mostrar o alerta com `motivo_status` e o WhatsApp.
+- **"O que está incluso":** lista fixa no app (não vem do SGP; o provedor define o texto).
+- **"Quero mudar de plano"** → WhatsApp comercial do provedor (número a definir, P-11).
 
 ### Perfil
-- Nome (`user.name`), CPF/CNPJ mascarado (`user.username`), contrato atual e a opção de trocar de contrato.
-- Trocar senha (`authClient.changePassword`), ativar/desativar biometria e sair (`authClient.signOut` e limpar o SecureStore).
+- `GET /usuario/perfil` → nome, CPF/CNPJ já formatado, tipo de pessoa e os contatos cadastrados no SGP (telefones e e-mails, cada um com `tipo`, ex.: "WhatsApp Número", "Celular Pessoal").
+  - `contatos: null` → o SGP não respondeu. Mostrar o resto do perfil e esconder a seção de contatos.
+  - Os contatos são **só leitura**. Para mudar, mostrar "Para atualizar seus dados, fale com a Ultra Net X" com o WhatsApp do provedor.
+- Contrato atual e "Trocar contrato" (só quando `totalContratos > 1`).
+- **Segurança:** trocar senha (`authClient.changePassword`), "Aparelhos conectados" (`authClient.listSessions`, com "Desconectar outros aparelhos" via `authClient.revokeOtherSessions`) e ativar/desativar biometria.
+- **Sair:** `authClient.signOut` e limpar o SecureStore.
 - **Não exibir** `user.email`, que pode ser técnico.
 
 ---
@@ -207,11 +236,67 @@ O app precisa **funcionar com o SGP fora do ar**: mostrar o último dado conheci
 
 ---
 
-## 6. DTOs de saída (rotas 🕓)
+## 6. DTOs de saída
 
 Todos os campos chegam como o SGP devolve. Datas em `"AAAA-MM-DD"` ou `"AAAA-MM-DD HH:MM:SS"`. Valores em reais (`number`).
 
 ```ts
+type ContatoDto = {
+  tipo: string;                  // "Celular Pessoal", "WhatsApp Número", "Telefone Residencial", "E-Mail"…
+  contato: string;               // "(84) 99999-9999" ou "nome@email.com"
+};
+
+type PerfilDto = {
+  nome: string;
+  cpfCnpj: string;               // já formatado: "123.456.789-09" / "61.673.447/0001-16"
+  tipoPessoa: "fisica" | "juridica";
+  contatos: { telefones: ContatoDto[]; emails: ContatoDto[] } | null; // null = SGP fora do ar
+  totalContratos: number | null;
+  criadoEm: string;              // ISO 8601
+};
+
+type EnderecoDto = {
+  logradouro: string; numero: string; complemento: string;
+  bairro: string; cidade: string; uf: string; cep: string; // vazios chegam como ""
+};
+
+type MeuPlanoDto = {
+  contratoId: number;
+  contratoStatus: 1 | 4 | 7 | number;
+  contratoStatusDisplay: string;
+  motivo_status: string;
+  endereco: EnderecoDto;
+  plano: {
+    nome: string;
+    tecnologia: string;          // "fibra", "radio"…
+    downloadKbps: number | null;
+    uploadKbps: number | null;
+    valorMensal: number | null;  // preço do plano no catálogo do SGP
+    vencimentoDia: number | null;
+  };
+  faturaVencida: {               // só com o contrato suspenso/reduzido
+    id: number;                  // usar em /faturas/:fatura/pix
+    valor: number;               // com multa e juros
+    vencimento: string;          // vencimento original, AAAA-MM-DD
+    diasEmAtraso: number;
+  } | null;
+  liberacaoConfiancaDisponivel: boolean; // mostrar o botão "Desbloqueio em confiança"
+};
+
+type PromessaDto = {
+  id: number; contratoId: number;
+  dataCadastro: string; dataPagamento: string; // "AAAA-MM-DD HH:MM:SS"
+  acordo: boolean;
+  status: string;                // "ativa" | "inativa"
+};
+
+type LiberacaoDto = {
+  contratoId: number;
+  liberado: boolean;
+  liberado_dias: number | null;
+  protocolo: string | null;
+};
+
 type ContratoDto = {
   contratoId: number;
   clienteId: number;
@@ -221,11 +306,13 @@ type ContratoDto = {
   contratoStatusDisplay: string; // "Ativo", "Suspenso"…
   motivo_status: string;
   planointernet: string;         // nome do plano (ex.: "500MB - MOVI TELECOM")
+  servico_grupo: string;         // tecnologia: "fibra", "radio"…
+  endereco: EnderecoDto;         // endereço de instalação
   cobVencimento: number | null;  // dia do vencimento
   popId: number;
   popNome: string;
-  telefones: string[];
-  emails: string[];
+  telefones: ContatoDto[];
+  emails: ContatoDto[];
   contratoValorAberto: number;
   contratoTitulosAReceber: number;
   promessasPagamentoMes: number;

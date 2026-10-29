@@ -8,3 +8,4 @@ export type * from "./conexao.dto";
 export type * from "./manutencao.dto";
 export type * from "./promessa.dto";
 export type * from "./chamado.dto";
+export type * from "./usuario.dto";

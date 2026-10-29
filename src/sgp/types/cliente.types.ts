@@ -6,6 +6,25 @@ export type SgpContratoStatus = 1 | 2 | 3 | 4 | 7 | (number & {});
 
 // ---------- POST /api/ura/consultacliente/ ----------
 
+// Endereço de instalação do contrato (campos endereco_* do SGP)
+export type SgpEndereco = {
+  logradouro: string;
+  numero: string;
+  complemento: string;
+  bairro: string;
+  cidade: string;
+  uf: string;
+  cep: string;
+};
+
+// Telefone ou e-mail do cadastro. O SGP manda { tipoContato, contato, inscricoes }
+// (a documentação mostra string; o proxy aceita os dois formatos)
+export type SgpContato = {
+  // Ex.: "Celular Pessoal", "WhatsApp Número", "Telefone Residencial", "E-Mail"
+  tipo: string;
+  contato: string;
+};
+
 // Só os campos que o app usa. Senhas da Central, PPPoE, Wi-Fi, MAC e IP nunca saem do proxy.
 export type SgpContrato = {
   contratoId: number;
@@ -16,11 +35,14 @@ export type SgpContrato = {
   contratoStatusDisplay: string;
   motivo_status: string;
   planointernet: string;
+  // Tecnologia da conexão (ex.: "fibra", "radio")
+  servico_grupo: string;
+  endereco: SgpEndereco;
   cobVencimento: number | null;
   popId: number;
   popNome: string;
-  telefones: string[];
-  emails: string[];
+  telefones: SgpContato[];
+  emails: SgpContato[];
   contratoValorAberto: number;
   contratoTitulosAReceber: number;
   promessasPagamentoMes: number;
