@@ -2,43 +2,28 @@ import { openapi } from "@elysia/openapi";
 import { Elysia } from "elysia";
 // import { presentesController } from "./controller/presentes.routes";
 
+import { betterAuthPlugin, OpenAPI } from "@/src/http/plugins/auth-plugin";
+import { LogSystemError, Mount500Err, ToDto } from "@/src/http/utils";
 import { SystemException } from "@/src/shared/error";
-import cors from "@elysia/cors";
 import * as errs from "~/shared/error/exceptions";
-
-function logSystemError(error: unknown) {
-  if (error instanceof SystemException) {
-    console.error(error.stack);
-    console.error(
-      `❌ [${error.horario}] [${error.constructor.name}]: ${error.message}`,
-    );
-    console.error(`   ├─ Code: ${error.Erro.Code()}`);
-    if (error.e) {
-      console.error(`   └─ Causa Raiz: ${error.e.cause}`);
-    }
-    return;
-  }
-
-  // Fallback para outros erros não mapeados
-  console.error(error);
-}
 
 export async function StartServer(port: number) {
   const app = new Elysia()
-    .use(openapi())
+
+    .use(betterAuthPlugin)
     .use(
-      cors({
-        origin: [""],
-        methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        credentials: true,
-        allowedHeaders: ["Content-Type", "Authorization"],
+      openapi({
+        documentation: {
+          components: await OpenAPI.components,
+          paths: await OpenAPI.getPaths(),
+        },
       }),
     )
     .error(errs)
     .onError({ as: "global" }, (x) => {
       const { code, error, set } = x;
 
-      logSystemError(error);
+      LogSystemError(error);
 
       switch (code) {
         case "DomainException": {
@@ -72,15 +57,4 @@ export async function StartServer(port: number) {
     .listen(port, () => {
       console.log(`🦊 Server is Running on port ${port}`);
     });
-}
-
-function ToDto(error: Readonly<SystemException>, message?: string): any {
-  return {
-    code: error.Erro.Code(),
-    message: message || error.message,
-  };
-}
-
-function Mount500Err(code: string) {
-  return `Entre em contato com suporte informando o codigo SE${code}`;
 }
